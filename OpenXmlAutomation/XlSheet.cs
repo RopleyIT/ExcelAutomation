@@ -36,6 +36,57 @@ namespace OpenXmlAutomation
             }
         }
 
+        // Match cell ranges, including single cells. Example:
+        // "$A$3:$B$12" for cells in rectangle A3 to B12, or
+        // "$A$3" for the single cell A3.
+
+        private static readonly Regex reRange 
+            = new(@"\$([A-Z]{1,2})\$(\d+)(::\$([A-Z]{1,2})\$(\d+))?$", 
+                RegexOptions.Compiled);
+        
+        /// <summary>
+        /// Given a cell range string in the current worksheet,
+        /// find the array of cells matching this range
+        /// </summary>
+        /// <param name="range">The range string</param>
+        /// <returns>The cell range object</returns>
+        /// <exception cref="ArgumentException">
+        /// Thrown if the range string is badly formed
+        /// </exception>
+        
+        public XlRange FindRange(string range)
+        {
+            Match m = reRange.Match(range);
+            if(!m.Success || m.Groups.Count != 5)
+                throw new ArgumentException($"Range {range} is invalid.");
+            int topIdx = int.Parse(m.Groups[2].Value)-1;
+            int botIdx = int.Parse(m.Groups[4].Value)-1;
+            int leftIdx = XlCell.ToColIndex(m.Groups[1].Value);
+            int rtIdx = XlCell.ToColIndex(m.Groups[3].Value);
+            if (rtIdx < leftIdx || botIdx < topIdx)
+                throw new ArgumentException
+                    ($"Range {range} has cell references reversed");
+
+            // Create the two dimensional array of cells as a list of lists
+            // with the correct capacity for the number of rows and columns
+            // to prevent reallocation and copying on list growth.
+
+            int rowLength = rtIdx - leftIdx + 1;
+            int colDepth = botIdx - topIdx + 1;
+            List<List<XlCell>> cells = new(rowLength);
+            for (int colIdx = 0; colIdx < rowLength; colIdx++)
+            {
+                cells.Add(new(colDepth));
+                for(int rowIdx = 0; rowIdx < colDepth; rowIdx++)
+                {
+                    XlCell cell = FindCell(XlCell
+                        .ToColName(leftIdx + colIdx) + (topIdx + rowIdx + 1));
+                    cells.Last().Add(cell);
+                }
+            }
+            return new XlRange(this, range, cells);
+        }
+
         /// <summary>
         /// Factory for an XlCell. Do not use the
         /// XlCell constructor from outside this

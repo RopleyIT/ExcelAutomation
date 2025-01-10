@@ -34,28 +34,61 @@ public class XlCell
     public uint Row { get; private set; } = 0;
 
 
+    private static readonly Regex reColName
+        = new("^[A-Z]{1,2}$", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Given a column name, e.g. "C" or "AA", return
+    /// its zero-based column index. WARNING: This
+    /// method assumes you've already checked the string
+    /// 'col' has one or two uppercase letters.
+    /// </summary>
+    /// <param name="col">The column string</param>
+    /// <returns>The index for the column</returns>
+
+    public static int ToColIndex(string col)
+    {
+        if (!reColName.IsMatch(col))
+            throw new ArgumentException
+                ("Column names must be one or two upper case letters");
+        int result = 0;
+        if (col.Length == 2)
+            result += 26 * (col[0] - 'A' + 1);
+        result += col[^1] - 'A';
+        return result;
+    }
+
+    /// <summary>
+    /// Given a column number in the range 0 .. 701,
+    /// generate the equivalent one or two character
+    /// column name
+    /// </summary>
+    /// <param name="idx">The column index</param>
+    /// <returns>The column name</returns>
+    /// <exception cref="ArgumentException">Thrown if
+    /// the index is out of range</exception>
+    
+    public static string ToColName(int idx)
+    {
+        if (idx < 26)
+            return ('A' + idx).ToString();
+        if (idx < 27 * 26)
+            return (idx / 26 - 1 + 'A').ToString() + ('A' + idx % 26);
+        throw new ArgumentException
+            ("Only supports up to two-letter column names");
+    }
+
     public uint ColumnIndex
     {
         get
         {
-            uint idx = 0;
-            foreach(char c in Column)
-            {
-                idx *= 26;
-                idx += (uint)(char.ToUpper(c) - 'A');
-            }
-            return idx;
+            return (uint)ToColIndex(Column);
         }
         set
         {
-            if (value > 256)
-                throw new ArgumentException("Column index > 256");
-            uint leftDigit = value / 26;
-            uint rightDigit = value % 26;
-            if (leftDigit != 0)
-                Column = ('A' + leftDigit).ToString() + (rightDigit + 'A');
-            else
-                Column = (rightDigit + 'A').ToString();
+            if (value > 27*26)
+                throw new ArgumentException("Column index too high for two letters");
+            Column = ToColName((int)value);
         }
     }
 
@@ -65,25 +98,20 @@ public class XlCell
         set => Row = value + 1;
     }
 
-    private readonly static Regex reColumn 
-        = new("[A-Z][A-Z]?", RegexOptions.Compiled);
-    private readonly static Regex reRow 
-        = new("\\d+", RegexOptions.Compiled);
     private readonly static Regex reCellName 
-        = new("[A-Z][A-Z]?\\d+", RegexOptions.Compiled);
+        = new(@"^([A-Z]{1,2})(\d+)$", RegexOptions.Compiled);
     
     public string CellName
     {
         get => Column + Row;
         set
         {
-            if (reCellName.IsMatch(value))
-            {
-                Row = uint.Parse(reRow.Match(value).Value);
-                Column = reColumn.Match(value).Value;
-            }
-            else
-                throw new ArgumentException($"Invalid cell name: {value}");
+            Match m = reCellName.Match(value);
+            if (!m.Success || m.Groups.Count != 3)
+                throw new ArgumentException
+                    ($"Cell name badly formed: {value}");
+            Row = uint.Parse(m.Groups[2].Value);
+            Column = m.Groups[1].Value;
         }
     }
 

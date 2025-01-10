@@ -196,19 +196,24 @@ public class XlDocument : IDisposable
                 ($"File {path} must end with '.xls.', '.xlsx' or '.xlsm'");
     }
 
-    private static readonly Regex cellNameRegex
-        = new Regex(@"^([^!]+)!\$([A-Z]+)\$(\d+)(::\$(A-Z)+\$(\d+))?$", 
-            RegexOptions.Compiled);
+    // Match the sheet name at the start of a full
+    // cell range expression, e.g. "Sheet one!$A$37:$B$44"
+    private static readonly Regex sheetNameRegex
+        = new Regex(@"^(\w[\w ]+\w)!(.*)$", RegexOptions.Compiled);
 
-    //public XlRange FindRange(string cellRange)
-    //{
-    //    Match m = cellNameRegex.Match(cellRange);
-    //    if (!m.Success)
-    //        throw new ArgumentException($"Badly formed cell reference: {cellRange}");
-
-    //    // TODO: FInish this
-
-    //}
+    public XlRange FindRange(string cellRange)
+    {
+        Match m = sheetNameRegex.Match(cellRange);
+        if (!m.Success || m.Groups.Count != 3)
+            throw new ArgumentException
+                ($"Badly formed range/cell reference: {cellRange}");
+        string sheetName = m.Groups[1].Value;
+        string range = m.Groups[2].Value;
+        XlSheet? sheet = Sheets.FirstOrDefault(s => s.Name == sheetName);
+        if (sheet == null)
+            throw new ArgumentException($"No sheet with name {sheetName}");
+        return sheet.FindRange(range);
+    }
 
     /// <summary>
     /// Ensure that a text string used in the spreadsheet is
@@ -217,7 +222,7 @@ public class XlDocument : IDisposable
     /// <param name="text">The string to be stored</param>
     /// <returns>The index in the string table at which
     /// the string was stored</returns>
-    
+
     internal int InsertSharedStringItem(string text)
     {
         // If the part does not yet contain a SharedStringTable, create it.

@@ -13,12 +13,12 @@ namespace OpenXmlAutomation
     {
         private string cellRange;
         private XlSheet sheet;
-        public XlCell? TopLeft { get; set; }
-        public XlCell? BottomRight { get; set; }
-        internal XlRange(XlSheet s, string tlbr) 
+        public List<List<XlCell>> Cells { get; private set; }
+        internal XlRange(XlSheet s, string tlbr, List<List<XlCell>> cells) 
         { 
             sheet = s;
             cellRange = tlbr; 
+            Cells = cells;
         }
     }
 }
