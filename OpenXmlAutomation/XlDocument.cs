@@ -5,6 +5,7 @@ using DocumentFormat.OpenXml.Office2016.Excel;
 using DocumentFormat.OpenXml.Office2021.Excel.RichDataWebImage;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
+using System.Security.Cryptography.X509Certificates;
 using System.Text.RegularExpressions;
 namespace OpenXmlAutomation;
 
@@ -15,10 +16,12 @@ namespace OpenXmlAutomation;
 
 public class XlDocument : IDisposable
 {
-    private SpreadsheetDocument document;
-    private WorkbookPart workbookPart;
-    private SharedStringTablePart sharedStringTablePart;
+    private readonly SpreadsheetDocument document;
+    private readonly WorkbookPart workbookPart;
+    private readonly SharedStringTablePart sharedStringTablePart;
     
+    private readonly IdAllocator idAllocator;
+
     /// <summary>
     /// Constructor used to open an existing Excel
     /// spreadsheet document
@@ -61,7 +64,18 @@ public class XlDocument : IDisposable
             sharedStringTablePart = workbookPart.GetPartsOfType<SharedStringTablePart>().First();
         else
             sharedStringTablePart = workbookPart.AddNewPart<SharedStringTablePart>();
+ 
+        // Set up an ID allocator for internal component references
+
+        idAllocator = new IdAllocator();
     }
+
+    /// <summary>
+    /// Allocate a new Id for use in child elements
+    /// </summary>
+    /// <returns>The next free unique Id</returns>
+    
+    public uint NextId() => (uint)idAllocator.NextRandomId();
 
     /// <summary>
     /// Create a new empty spreadsheet (with one workbook and one
@@ -185,7 +199,7 @@ public class XlDocument : IDisposable
         return xlSheet;
     }
 
-    private static Regex r = new (".*\\.[xX][lL][sS][xXmM]?$");
+    private readonly static Regex r = new (".*\\.[xX][lL][sS][xXmM]?$");
 
     private static void ValidatePath(string path)
     {
@@ -199,19 +213,18 @@ public class XlDocument : IDisposable
     // Match the sheet name at the start of a full
     // cell range expression, e.g. "Sheet one!$A$37:$B$44"
     private static readonly Regex sheetNameRegex
-        = new Regex(@"^(\w[\w ]+\w)!(.*)$", RegexOptions.Compiled);
+        = new (@"^(\w[\w ]+\w)!(.*)$", RegexOptions.Compiled);
 
-    public XlRange FindRange(string cellRange)
+    public XlRange? FindRange(string cellRange)
     {
         Match m = sheetNameRegex.Match(cellRange);
         if (!m.Success || m.Groups.Count != 3)
-            throw new ArgumentException
-                ($"Badly formed range/cell reference: {cellRange}");
+            return null;
         string sheetName = m.Groups[1].Value;
         string range = m.Groups[2].Value;
         XlSheet? sheet = Sheets.FirstOrDefault(s => s.Name == sheetName);
         if (sheet == null)
-            throw new ArgumentException($"No sheet with name {sheetName}");
+            return null;
         return sheet.FindRange(range);
     }
 
@@ -259,7 +272,7 @@ public class XlDocument : IDisposable
         get
         {
             if(sharedStringTablePart.SharedStringTable is null)
-                return Enumerable.Empty<string>();
+                return [];
             return sharedStringTablePart.SharedStringTable
                 .Elements<SharedStringItem>()
                 .Select(ssi => ssi.InnerText);
@@ -361,6 +374,109 @@ public class XlDocument : IDisposable
             }
             workbookPart.SharedStringTablePart?.SharedStringTable.Save();
         }
+    }
+
+    private List<string> VectorFromRange(string cellRange)
+    {
+        XlRange? range = FindRange(cellRange) 
+            ?? throw new ArgumentException($"Invalid cell range: {cellRange}");
+        List<string> strings = [];
+        if (range.Width == 1)
+            foreach (XlCell cell in range.Cells[0])
+                strings.Add(cell.Value ?? string.Empty);
+        else if (range.Height == 1)
+            foreach (List<XlCell> col in range.Cells)
+                strings.Add(col[0].Value ?? string.Empty);
+        else
+            throw new ArgumentException
+                ($"Range {cellRange} should be a row or column vector");
+        return strings;
+    }
+
+    /// <summary>
+    /// Given an XlRange within the workbook, create the
+    /// string cache containing the list of values in the range
+    /// </summary>
+    /// <param name="cellRange">The range of cells. Should be a vector.</param>
+    /// <returns>The corresponding string cache</returns>
+    /// <exception cref="ArgumentException">Thrown if the range is
+    /// not a vector</exception>
+
+    internal StringCache StringCacheFromRange(string cellRange)
+    {
+        List<string> strings = VectorFromRange(cellRange);
+
+        // Now construct the tree of cache objects in the string cache
+
+        StringCache cache = new();
+        PointCount pointCount = new()
+        {
+            Val = (UInt32Value)(uint)strings.Count
+        };
+        cache.Append(pointCount);
+
+        uint ui = 0u;
+        foreach(string s in strings)
+        {
+            StringPoint point = new () 
+            { 
+                Index = (UInt32Value)ui++ 
+            };
+            NumericValue numVal = new()
+            {
+                Text = s
+            };
+            point.Append(numVal);
+            cache.Append(point);
+        }
+        return cache;
+    }
+
+    /// <summary>
+    /// Given an XlRange within the workbook, create
+    /// a number cache from the list of values at those cells.
+    /// The range should be a row or column vector.
+    /// </summary>
+    /// <param name="cellRange">The cells from which to fetch
+    /// the cached values</param>
+    /// <param name="format">The formatting to be applied to 
+    /// the values</param>
+    /// <returns>The cache object</returns>
+    
+    internal NumberingCache NumberingCacheFromCellRange
+        (string cellRange, string format)
+    {
+        List<string> strings = VectorFromRange(cellRange);
+
+        // Now construct the numeric value cache
+
+        NumberingCache cache = new();
+        FormatCode formatCode = new()
+        {
+            Text = format
+        };
+        PointCount pointCount = new()
+        {
+            Val = (UInt32Value)(uint)strings.Count
+        };
+        cache.Append(formatCode);
+        cache.Append(pointCount);
+
+        uint ui = 0;
+        foreach (string s in strings)
+        {
+            NumericPoint point = new()
+            {
+                Index = (UInt32Value)ui++
+            };
+            NumericValue numVal = new()
+            {
+                Text = s
+            };
+            point.Append(numVal);
+            cache.Append(point);
+        }
+        return cache;
     }
 
     private bool disposedValue;
