@@ -25,6 +25,5 @@ namespace OpenXmlAutomation
             cellRange = tlbr; 
             Cells = cells;
         }
-        
     }
 }

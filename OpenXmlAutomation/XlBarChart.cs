@@ -1,7 +1,9 @@
 ﻿using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Drawing.Charts;
+using DocumentFormat.OpenXml.Drawing.Spreadsheet;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
+using DocumentFormat.OpenXml.Vml.Spreadsheet;
 using A = DocumentFormat.OpenXml.Drawing;
 using NumberingFormat = DocumentFormat.OpenXml.Drawing.Charts.NumberingFormat;
 using OrientationValues = DocumentFormat.OpenXml.Drawing.Charts.OrientationValues;
@@ -10,6 +12,19 @@ namespace OpenXmlAutomation
 {
     public class XlBarChart(XlSheet s)
     {
+        /// <summary>
+        /// Set to a unique value for each chart added
+        /// </summary>
+        public uint ChartIndex { get; set; }
+
+        /// <summary>
+        /// The cells the chart will overlay. A default area
+        /// in the top left corner of the sheet is set up,
+        /// but this property should be set for correct 
+        /// positioning.
+        /// </summary>
+        public string CellArea { get; set; } = "A1:G14";
+
         /// <summary>
         /// "col" or "bar" for vertical or horizontal bars in chart
         /// </summary>
@@ -60,7 +75,8 @@ namespace OpenXmlAutomation
 
             A.Run run = new  ();
             A.RunProperties runProperties = new() { Language = "en-GB" };
-            A.Text text = new() { Text = ChartTitle };
+            XlCell titleCell = sheet.FindCell(ChartTitle);
+            A.Text text = new() { Text = titleCell.Value ?? string.Empty };
 
             run.Append(runProperties);
             run.Append(text);
@@ -94,7 +110,6 @@ namespace OpenXmlAutomation
                 Id = sheet.part.GetIdOfPart(drawingsPart) 
             };
             sheet.part.Worksheet.Append(drawing);
-            sheet.part.Worksheet.Save();
 
             // Add a chart to the drawings part and set its language
 
@@ -114,11 +129,10 @@ namespace OpenXmlAutomation
             chartPart.ChartSpace.Append(roundedCorners);
             Chart chart = chartPart.ChartSpace.AppendChild<Chart>(new Chart());
 
-            // Provide the title flr the chart
+            // Provide the title for the chart
 
             chart.Append(GenerateTitleObject());
-            AutoTitleDeleted titleDeleted = new() { Val = false };
-            chart.Append(titleDeleted);
+            chart.AutoTitleDeleted = new() { Val = true };
 
             // Set up the plotting area for the bar chart
 
@@ -318,7 +332,6 @@ namespace OpenXmlAutomation
             {
                 Val = false
             };
-            chart.Append(plotArea);
             chart.Append(legend);
             chart.Append(plotVisibleOnly);
             chart.Append(displayBlanksAs);
@@ -342,6 +355,79 @@ namespace OpenXmlAutomation
             settings.Append(pageMargins);
             settings.Append(pageSetup);
             chartPart.ChartSpace.Append(settings);
+            chartPart.ChartSpace.Save();
+
+            // Now complete the entries in the drawing part. Set
+            // the position of the chart on the parent sheet using
+            // a two-cell anchor.
+
+            drawingsPart.WorksheetDrawing = new();
+            TwoCellAnchor twoCellAnchor = new();
+            drawingsPart.WorksheetDrawing.Append(twoCellAnchor);
+            XlCellRef chartArea = new(CellArea);
+            if (chartArea == null)
+                throw new ArgumentException
+                    ("CellArea for chart has an illegal value");
+            A.Spreadsheet.FromMarker fm = new(
+                new ColumnId(XlCellRef.Index(chartArea.Column).ToString()),
+                new ColumnOffset("0"),
+                new RowId(XlCellRef.Index(chartArea.Row).ToString()),
+                new RowOffset("0"));
+            A.Spreadsheet.ToMarker tm = new(
+                new ColumnId(XlCellRef.Index(chartArea.LastColumn).ToString()),
+                new ColumnOffset("0"),
+                new RowId(XlCellRef.Index(chartArea.LastRow).ToString()),
+                new RowOffset("0"));
+            twoCellAnchor.Append(fm);
+            twoCellAnchor.Append(tm);
+            GraphicFrame gf = new()
+            {
+                Macro = string.Empty,
+                NonVisualGraphicFrameProperties
+                    = new NonVisualGraphicFrameProperties()
+                    {
+                        NonVisualDrawingProperties
+                            = new NonVisualDrawingProperties()
+                            {
+                                Id = ChartIndex,
+                                Name = $"Chart {ChartIndex}"
+                            },
+                        NonVisualGraphicFrameDrawingProperties
+                            = new NonVisualGraphicFrameDrawingProperties()
+                    },
+                Transform = new()
+                {
+                    Offset = new()
+                    {
+                        X = 0,
+                        Y = 0
+                    },
+                    Extents = new()
+                    {
+                        Cx = 0,
+                        Cy = 0
+                    },
+                },
+                Graphic = new()
+                {
+                    GraphicData = new()
+                    {
+                        Uri = "http://schemas.openxmlformats.org/drawingml/2006/chart"
+                    }
+                }
+            };
+            gf.Graphic.GraphicData.AppendChild(new ChartReference()
+            {
+                Id = drawingsPart.GetIdOfPart(chartPart)
+            });
+            twoCellAnchor.Append(gf);
+            twoCellAnchor.Append(new A.Spreadsheet.ClientData());
+
+            // Now save all the parts away
+
+            sheet.part.Worksheet.Save();
+            drawingsPart.WorksheetDrawing.Save();
+            sheet.document.SaveWorkbook();
         }
 
         private static BarDirection BarDirFromStr(string direction)

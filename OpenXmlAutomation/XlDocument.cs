@@ -129,6 +129,11 @@ public class XlDocument : IDisposable
         return xlDoc;
     }
 
+    /// <summary>
+    /// Save the top level workbook
+    /// </summary>
+    public void SaveWorkbook() => workbookPart.Workbook.Save();
+
     private static (WorksheetPart, Sheet) AddSheetToWorkbook
         (WorkbookPart wbp, string name)
     {
@@ -210,22 +215,16 @@ public class XlDocument : IDisposable
                 ($"File {path} must end with '.xls.', '.xlsx' or '.xlsm'");
     }
 
-    // Match the sheet name at the start of a full
-    // cell range expression, e.g. "Sheet one!$A$37:$B$44"
-    private static readonly Regex sheetNameRegex
-        = new (@"^(\w[\w ]+\w)!(.*)$", RegexOptions.Compiled);
-
     public XlRange? FindRange(string cellRange)
     {
-        Match m = sheetNameRegex.Match(cellRange);
-        if (!m.Success || m.Groups.Count != 3)
+        XlCellRef cellRef = new(cellRange);
+        if (cellRef.SheetName == null)
             return null;
-        string sheetName = m.Groups[1].Value;
-        string range = m.Groups[2].Value;
-        XlSheet? sheet = Sheets.FirstOrDefault(s => s.Name == sheetName);
+        XlSheet? sheet = Sheets.FirstOrDefault
+            (s => s.Name == cellRef.SheetName);
         if (sheet == null)
             return null;
-        return sheet.FindRange(range);
+        return sheet.FindRange(cellRange);
     }
 
     /// <summary>

@@ -163,14 +163,12 @@ namespace OpenXmlAutomationTests
         [DataRow("ZZ999", 701u, 998u)]
         public void CellHasCorrectIndices(string cellRef, uint col, uint row)
         {
-            using (XlDocument? doc = XlDocument.Create("C:\\tmp\\Book2.xlsx", true))
-            {
-                Assert.IsNotNull(doc);
-                XlSheet sheet = doc.Sheets.First(s => s.Name == "Sheet1");
-                XlCell b2 = sheet.FindCell(cellRef);
-                Assert.AreEqual(row, b2.RowIndex);
-                Assert.AreEqual(col, b2.ColumnIndex);
-            }
+            using XlDocument? doc = XlDocument.Create("C:\\tmp\\Book2.xlsx", true);
+            Assert.IsNotNull(doc);
+            XlSheet sheet = doc.Sheets.First(s => s.Name == "Sheet1");
+            XlCell b2 = sheet.FindCell(cellRef);
+            Assert.AreEqual(row, b2.RowIndex);
+            Assert.AreEqual(col, b2.ColumnIndex);
         }
 
         [TestMethod]
