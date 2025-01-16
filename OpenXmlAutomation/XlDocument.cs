@@ -15,12 +15,11 @@ public class XlDocument : IDisposable
     private readonly SpreadsheetDocument document;
     private readonly WorkbookPart workbookPart;
     private readonly SharedStringTablePart sharedStringTablePart;
-
     private readonly IdAllocator idAllocator;
 
     /// <summary>
     /// Constructor used to open an existing Excel
-    /// spreadsheet document. THe user of this
+    /// spreadsheet document. The user of this
     /// library should use the static Open method.
     /// </summary>
     /// <param name="path">The path to the Excel

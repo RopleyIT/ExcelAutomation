@@ -203,8 +203,7 @@ public class XlSheet
         }
         else if (dataType == CellValues.Number)
         {
-            decimal value;
-            if (decimal.TryParse(newValue, out value))
+            if (decimal.TryParse(newValue, out decimal value))
             {
                 cell.DataType = new EnumValue<CellValues>(CellValues.Number);
                 cell.CellValue = new CellValue(value);
@@ -212,12 +211,11 @@ public class XlSheet
             }
             else
                 throw new ArgumentException
-                    ($"Cell of type number cannot be set to {newValue}");
+                    ($"Cell of type Number cannot be set to {newValue}");
         }
         else if (dataType == CellValues.Date)
         {
-            DateTime value;
-            if (DateTime.TryParse(newValue, out value))
+            if (DateTime.TryParse(newValue, out DateTime value))
             {
                 cell.DataType = new EnumValue<CellValues>(CellValues.Date);
                 cell.CellValue = new CellValue

@@ -6,7 +6,7 @@
 public class XlRange
 {
     private readonly string range;
-    private XlSheet sheet;
+    private readonly XlSheet sheet;
     public List<List<XlCell>> Cells { get; private set; }
 
     public int Width => Cells.Count;

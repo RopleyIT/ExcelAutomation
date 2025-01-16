@@ -2,7 +2,7 @@
 namespace OpenXmlAutomationTests;
 
 [TestClass]
-public sealed class XlDOcumentTests
+public sealed class XlDocumentTests
 {
     [TestMethod]
     public void CanOpenSpreadSheet()
