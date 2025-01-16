@@ -100,6 +100,7 @@ will be drawn on the sheet:
 ```
     XlBarChart barChart = new(sheet2)
     {
+        ChartIndex = 1,
         ChartTitle = "A1",
         Grouping = "clustered",
         RoundCorners = true,
@@ -113,6 +114,21 @@ create a bar chart series for each column of data, since we are going
 to show clustered columns on the bar chart:
 
 ```
+    barChart.SeriesList.Add(new XlBarChartSeries(sheet2)
+    {
+        CategoryCellRange = "Sheet1!$A$2:$A$4",
+        SeriesTitleCell = "Sheet1!B1",
+        ValueCellRange = "Sheet1!B2:B4",
+        ValueFormat = "##.#%"
+    });
+    barChart.SeriesList.Add(new XlBarChartSeries(sheet2)
+    {
+        CategoryCellRange = "Sheet1!$A$2:$A$4",
+        SeriesTitleCell = "Sheet1!C1",
+        ValueCellRange = "Sheet1!C2:C4",
+        ValueFormat = "##.#%"
+    });
+```
 Lastly, we invoke the `Generate` method to create the barchart within 
 the spreadsheet, saving the modified contents away into the object tree:
 
@@ -122,3 +138,8 @@ the spreadsheet, saving the modified contents away into the object tree:
 As before, the closing brace of the function containing the `using`
 statement that opened the spreadsheet file will save the contents of
 the file to disk.
+
+Note that if you wish to create multiple charts on the same sheet,
+you can use the same code structure as above. Just remember to give
+each successive bar chart an increasing value for its `ChartIndex`
+property when you create the bar chart object.
