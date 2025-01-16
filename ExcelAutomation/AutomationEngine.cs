@@ -1,5 +1,4 @@
-﻿using ClosedXML;
-using ClosedXML.Excel;
+﻿using ClosedXML.Excel;
 namespace ExcelAutomation
 {
     public class AutomationEngine
@@ -17,7 +16,7 @@ namespace ExcelAutomation
             var workSheet = workBook.Worksheet(1);
             var rnd = new Random();
             var offset = rnd.Next(12);
-            for(int i = 0; i < 12; i++)
+            for (int i = 0; i < 12; i++)
             {
                 int rowNum = 1 + ((i + offset) % 12);
                 var row = workSheet.Row(rowNum);

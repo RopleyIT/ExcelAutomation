@@ -1,12 +1,4 @@
-﻿using DocumentFormat.OpenXml;
-using DocumentFormat.OpenXml.Spreadsheet;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.Intrinsics.X86;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
+﻿using DocumentFormat.OpenXml.Spreadsheet;
 
 namespace OpenXmlAutomation;
 
@@ -31,8 +23,8 @@ public class XlCell
     public string Column => cellRef.Column;
     public uint Row => (uint)cellRef.Row;
 
-    private int dataType = 1;
-    
+    private int dataType = XlCell.String;
+
     /// <summary>
     /// The type of data last placed in the cell
     /// </summary>
@@ -41,20 +33,19 @@ public class XlCell
         get => dataType;
         set
         {
-            if(value <= XlCell.Boolean && value >= XlCell.Empty)
+            if (value <= XlCell.Boolean && value >= XlCell.Empty)
                 dataType = value;
-            else 
+            else
                 dataType = 0;
         }
     }
 
-    private CellValues ToDataType(int dt)
+    private static CellValues ToDataType(int dt)
         => dt switch
         {
             XlCell.String => CellValues.SharedString,
             XlCell.Number => CellValues.Number,
             XlCell.Date => CellValues.Date,
-            XlCell.Boolean => CellValues.Boolean,
             _ => CellValues.SharedString
         };
 
@@ -67,16 +58,47 @@ public class XlCell
     /// <param name="col">The column string</param>
     /// <returns>The index for the column</returns>
 
-    public static int ToColIndex(string col) 
+    public static int ToColIndex(string col)
         => XlCellRef.Index(col);
 
     public uint ColumnIndex => (uint)ToColIndex(Column);
 
     public uint RowIndex => Row - 1;
-    
+
     public string CellName
     {
         get => Column + Row;
+    }
+
+    public bool IsDouble => double.TryParse(Value, out double _);
+    public bool IsDecimal => decimal.TryParse(Value, out decimal _);
+    public bool IsDate => DateTime.TryParse(Value, out DateTime _);
+    public double AsDouble => double.Parse(Value ?? "");
+    public decimal AsDecimal => decimal.Parse(Value ?? "");
+    public DateTime AsDate => DateTime.Parse(Value ?? "");
+
+    public void Set(double value)
+    {
+        DataType = XlCell.Number;
+        Value = value.ToString();
+    }
+
+    public void Set(decimal value)
+    {
+        DataType = XlCell.Number;
+        Value = value.ToString();
+    }
+
+    public void Set(DateTime value)
+    {
+        DataType = XlCell.Date;
+        Value = value.ToString();
+    }
+
+    public void Set(string? value)
+    {
+        DataType = XlCell.String;
+        Value = value;
     }
 
     public string? Value
@@ -89,10 +111,10 @@ public class XlCell
             if (dt == CellValues.SharedString)
             {
                 string? id = cell.CellValue?.Text;
-                if(int.TryParse(id, out int ssi))
+                if (int.TryParse(id, out int ssi))
                     return sheet.document.LookupSharedString(ssi);
             }
-            else if(dt == CellValues.Number || dt == CellValues.Date
+            else if (dt == CellValues.Number || dt == CellValues.Date
                 || dt == CellValues.Boolean || dt == CellValues.InlineString
                 || dt == CellValues.String)
             {

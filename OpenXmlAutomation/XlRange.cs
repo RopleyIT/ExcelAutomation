@@ -1,29 +1,44 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿namespace OpenXmlAutomation;
 
-namespace OpenXmlAutomation
+/// <summary>
+/// Represents a range of cells
+/// </summary>
+public class XlRange
 {
-    /// <summary>
-    /// Represents a range of cells
-    /// </summary>
-    public class XlRange
+    private readonly string range;
+    private XlSheet sheet;
+    public List<List<XlCell>> Cells { get; private set; }
+
+    public int Width => Cells.Count;
+
+    public int Height => Cells.Count > 0 ? Cells[0].Count : 0;
+
+    public XlRange(XlSheet s, string tlbr)
     {
-        private string cellRange;
-        private XlSheet sheet;
-        public List<List<XlCell>> Cells { get; private set; }
+        sheet = s;
+        range = tlbr;
+        XlCellRef cellRange = new(sheet, range);
+        int topIdx = XlCellRef.Index(cellRange.Row);
+        int botIdx = XlCellRef.Index(cellRange.LastRow);
+        int leftIdx = XlCellRef.Index(cellRange.Column);
+        int rtIdx = XlCellRef.Index(cellRange.LastColumn);
 
-        public int Width => Cells.Count;
+        // Create the two dimensional array of cells as a list of lists
+        // with the correct capacity for the number of rows and columns
+        // to prevent reallocation and copying on list growth.
 
-        public int Height => Cells.Count > 0 ? Cells[0].Count : 0;
-
-        internal XlRange(XlSheet s, string tlbr, List<List<XlCell>> cells) 
-        { 
-            sheet = s;
-            cellRange = tlbr; 
-            Cells = cells;
+        int rowLength = rtIdx - leftIdx + 1;
+        int colDepth = botIdx - topIdx + 1;
+        Cells = new(rowLength);
+        for (int colIdx = 0; colIdx < rowLength; colIdx++)
+        {
+            Cells.Add(new(colDepth));
+            for (int rowIdx = 0; rowIdx < colDepth; rowIdx++)
+            {
+                XlCell cell = sheet.FindCell(XlCellRef
+                    .ToColName(leftIdx + colIdx) + (topIdx + rowIdx + 1));
+                Cells.Last().Add(cell);
+            }
         }
     }
 }

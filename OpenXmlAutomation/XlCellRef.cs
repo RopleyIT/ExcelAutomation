@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
+﻿using System.Text.RegularExpressions;
 
 namespace OpenXmlAutomation;
 
@@ -73,11 +68,11 @@ public class XlCellRef
     /// is one-based</param>
     /// <returns>The zero-based row index</returns>
     /// <exception cref="IndexOutOfRangeException"></exception>
-    public static int Index(int row) => row > 0 ? row - 1 
+    public static int Index(int row) => row > 0 ? row - 1
         : throw new IndexOutOfRangeException
             ("Row number must be greater than one");
 
-    private readonly static Regex reCol 
+    private readonly static Regex reCol
         = new("[A-Z]{1,2}", RegexOptions.Compiled);
 
     /// <summary>
@@ -127,7 +122,7 @@ public class XlCellRef
     /// <returns>The one-based equivalent</returns>
     /// <exception cref="ArgumentException">Thrown if argument
     /// is negative</exception>
-    public static int ToRowNumber(int idx) => idx >= 0 ? idx + 1 
+    public static int ToRowNumber(int idx) => idx >= 0 ? idx + 1
         : throw new ArgumentException("Row index must be zero or positive");
 
     private readonly static Regex reCellRef = new

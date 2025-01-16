@@ -1,11 +1,7 @@
 ﻿using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Drawing.Charts;
-using DocumentFormat.OpenXml.Math;
-using DocumentFormat.OpenXml.Office2016.Excel;
-using DocumentFormat.OpenXml.Office2021.Excel.RichDataWebImage;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
-using System.Security.Cryptography.X509Certificates;
 using System.Text.RegularExpressions;
 namespace OpenXmlAutomation;
 
@@ -19,20 +15,21 @@ public class XlDocument : IDisposable
     private readonly SpreadsheetDocument document;
     private readonly WorkbookPart workbookPart;
     private readonly SharedStringTablePart sharedStringTablePart;
-    
+
     private readonly IdAllocator idAllocator;
 
     /// <summary>
     /// Constructor used to open an existing Excel
-    /// spreadsheet document
+    /// spreadsheet document. THe user of this
+    /// library should use the static Open method.
     /// </summary>
     /// <param name="path">The path to the Excel
     /// document file</param>
     /// <exception cref="ArgumentException">
     /// Thrown if the Excel file is missing, badly
     /// named, or badly formed</exception>
-    
-    public XlDocument(string path)
+
+    private XlDocument(string path)
     {
         ValidatePath(path);
         document = SpreadsheetDocument.Open(path, true);
@@ -47,12 +44,12 @@ public class XlDocument : IDisposable
 
         // Initialise the list of sheets
 
-        IEnumerable<Sheet> sheets 
+        IEnumerable<Sheet> sheets
             = workbookPart.Workbook.Descendants<Sheet>();
         foreach (Sheet sheet in sheets)
         {
             string? id = sheet.Id;
-            if (id is null) 
+            if (id is null)
                 continue;
             WorksheetPart wsp = (WorksheetPart)workbookPart.GetPartById(id);
             Sheets.Add(new XlSheet(this, wsp, sheet));
@@ -64,7 +61,7 @@ public class XlDocument : IDisposable
             sharedStringTablePart = workbookPart.GetPartsOfType<SharedStringTablePart>().First();
         else
             sharedStringTablePart = workbookPart.AddNewPart<SharedStringTablePart>();
- 
+
         // Set up an ID allocator for internal component references
 
         idAllocator = new IdAllocator();
@@ -74,8 +71,22 @@ public class XlDocument : IDisposable
     /// Allocate a new Id for use in child elements
     /// </summary>
     /// <returns>The next free unique Id</returns>
-    
+
     public uint NextId() => (uint)idAllocator.NextRandomId();
+
+    /// <summary>
+    /// Open an existing spreadsheet. We could have exposed the
+    /// constructor directly here, but the constructor looks
+    /// to its users as if it is creating rather than opening,
+    /// particularly as there is a static Create method. The
+    /// private constructor and this static method make it
+    /// clearer to the user that the file must already exist.
+    /// </summary>
+    /// <param name="path">Path to an existing spreadsheet</param>
+    /// <returns>The opened document object for this spreadsheet
+    /// file</returns>
+
+    public static XlDocument Open(string path) => new(path);
 
     /// <summary>
     /// Create a new empty spreadsheet (with one workbook and one
@@ -87,7 +98,7 @@ public class XlDocument : IDisposable
     /// file with the specified path</param>
     /// <returns>The open document object if successful. Null
     /// if not.</returns>
-    
+
     public static XlDocument? Create(string path, bool overwrite = false)
     {
         if (File.Exists(path))
@@ -109,7 +120,7 @@ public class XlDocument : IDisposable
 
             // Create the shared string table
 
-            SharedStringTablePart sstPart 
+            SharedStringTablePart sstPart
                 = wbp.AddNewPart<SharedStringTablePart>();
             sstPart.SharedStringTable = new SharedStringTable();
             sstPart.SharedStringTable.Save();
@@ -125,7 +136,7 @@ public class XlDocument : IDisposable
 
         // Now reopen the document to construct the XlDocument in memory
 
-        XlDocument xlDoc = new (path);
+        XlDocument xlDoc = new(path);
         return xlDoc;
     }
 
@@ -155,7 +166,7 @@ public class XlDocument : IDisposable
                 sheetId = maxId.Value + 1;
         }
 
-        Sheet sheet = new ()
+        Sheet sheet = new()
         {
             Id = relationshipId,
             SheetId = sheetId,
@@ -181,7 +192,7 @@ public class XlDocument : IDisposable
     /// must be unique within the document.</param>
     /// <returns>The new worksheet, or null if the name was already
     /// in use for another worksheet</returns>
-    
+
     public XlSheet? AddSheet(string sheetName)
     {
         // Check there is not already a sheet with this name
@@ -191,7 +202,7 @@ public class XlDocument : IDisposable
 
         // Use OpenXml API to create a
         // worksheet and add it to the workbook
-        
+
         WorksheetPart? wsp;
         Sheet? sheet;
         (wsp, sheet) = AddSheetToWorkbook(workbookPart, sheetName);
@@ -204,12 +215,12 @@ public class XlDocument : IDisposable
         return xlSheet;
     }
 
-    private readonly static Regex r = new (".*\\.[xX][lL][sS][xXmM]?$");
+    private readonly static Regex r = new(".*\\.[xX][lL][sS][xXmM]?$");
 
     private static void ValidatePath(string path)
     {
         if (!File.Exists(path))
-            throw new ArgumentException($"File {path} does not exist");
+            throw new ArgumentException($"Spreadsheet {path} does not exist");
         if (!r.IsMatch(path))
             throw new ArgumentException
                 ($"File {path} must end with '.xls.', '.xlsx' or '.xlsm'");
@@ -224,7 +235,8 @@ public class XlDocument : IDisposable
             (s => s.Name == cellRef.SheetName);
         if (sheet == null)
             return null;
-        return sheet.FindRange(cellRange);
+        else
+            return new XlRange(sheet, cellRange);
     }
 
     /// <summary>
@@ -238,7 +250,7 @@ public class XlDocument : IDisposable
     internal int InsertSharedStringItem(string text)
     {
         // If the part does not yet contain a SharedStringTable, create it.
-        
+
         sharedStringTablePart.SharedStringTable ??= new SharedStringTable();
 
         // See if the string exists already in the table. If so, return its index.
@@ -255,7 +267,7 @@ public class XlDocument : IDisposable
 
         // The text does not exist in the table. Create the SharedStringItem.
 
-        SharedStringItem ssi = new (new DocumentFormat.OpenXml.Spreadsheet.Text(text));
+        SharedStringItem ssi = new(new DocumentFormat.OpenXml.Spreadsheet.Text(text));
         sharedStringTablePart.SharedStringTable.AppendChild(ssi);
         sharedStringTablePart.SharedStringTable.Save();
         return i;
@@ -265,12 +277,12 @@ public class XlDocument : IDisposable
     /// Return the list of strings that are held in the
     /// shared string table. Used for debugging and testing.
     /// </summary>
-    
+
     public IEnumerable<string> SharedStringTableContents
     {
         get
         {
-            if(sharedStringTablePart.SharedStringTable is null)
+            if (sharedStringTablePart.SharedStringTable is null)
                 return [];
             return sharedStringTablePart.SharedStringTable
                 .Elements<SharedStringItem>()
@@ -325,7 +337,7 @@ public class XlDocument : IDisposable
                     && cell.CellValue?.Text == ssi.ToString())
                 {
                     refCount++;
-                    if(refCount > 1)
+                    if (refCount > 1)
                         break;
                 }
             }
@@ -336,7 +348,7 @@ public class XlDocument : IDisposable
         // If we get here and the reference count is one or less, we
         // can remove the shared string from the shared string table.
 
-        if(refCount <= 1)
+        if (refCount <= 1)
         {
             SharedStringItem removee = sharedStringTablePart
                 .SharedStringTable
@@ -361,8 +373,8 @@ public class XlDocument : IDisposable
 
                 foreach (var cell in cells)
                 {
-                    if (cell.DataType is not null 
-                        && cell.DataType.Value == CellValues.SharedString 
+                    if (cell.DataType is not null
+                        && cell.DataType.Value == CellValues.SharedString
                         && int.TryParse(cell.CellValue?.Text, out int itemIndex))
                     {
                         if (itemIndex > ssi)
@@ -377,7 +389,7 @@ public class XlDocument : IDisposable
 
     private List<string> VectorFromRange(string cellRange)
     {
-        XlRange? range = FindRange(cellRange) 
+        XlRange? range = FindRange(cellRange)
             ?? throw new ArgumentException($"Invalid cell range: {cellRange}");
         List<string> strings = [];
         if (range.Width == 1)
@@ -415,11 +427,11 @@ public class XlDocument : IDisposable
         cache.Append(pointCount);
 
         uint ui = 0u;
-        foreach(string s in strings)
+        foreach (string s in strings)
         {
-            StringPoint point = new () 
-            { 
-                Index = (UInt32Value)ui++ 
+            StringPoint point = new()
+            {
+                Index = (UInt32Value)ui++
             };
             NumericValue numVal = new()
             {
@@ -441,7 +453,7 @@ public class XlDocument : IDisposable
     /// <param name="format">The formatting to be applied to 
     /// the values</param>
     /// <returns>The cache object</returns>
-    
+
     internal NumberingCache NumberingCacheFromCellRange
         (string cellRange, string format)
     {
