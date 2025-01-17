@@ -71,7 +71,7 @@ public class XlDocument : IDisposable
     /// </summary>
     /// <returns>The next free unique Id</returns>
 
-    public uint NextId() => (uint)idAllocator.NextRandomId();
+    internal uint NextId() => (uint)idAllocator.NextRandomId();
 
     /// <summary>
     /// Open an existing spreadsheet. We could have exposed the

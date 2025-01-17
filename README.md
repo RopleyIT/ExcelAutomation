@@ -143,3 +143,281 @@ Note that if you wish to create multiple charts on the same sheet,
 you can use the same code structure as above. Just remember to give
 each successive bar chart an increasing value for its `ChartIndex`
 property when you create the bar chart object.
+
+## Classes, methods and properties
+
+### The `XlDocument` class
+
+This class represents an entire spreadsheet file while it has been
+loaded into memory and is being manipulated. The class implements
+the `IDisposable` interface, guaranteeing that the document is
+saved to disk securely upon going out of scope.
+
+### Methods and properties
+
+`public static XlDocument Open(string path);`
+
+Used to open an existing spreadsheet file. Files must end with the
+extension `.xlsx` and be a valid OpenXml-compliant spreadsheet. If
+there is a problem with the file being opened, the method throws
+an `ArgumentException` with a message indicating the reason for
+failure.
+
+`public static XlDocument? Create(string path, bool overwrite);`
+
+This will create a new spreadsheet file named using the argument
+called `path`. The file will contain a single empty worksheet
+named `Sheet 1` similar to the behaviour of Excel. If the 
+`overwrite` flag is set to true, an existing
+spreadsheet with the same path will be overwritten with a new
+empty spreadsheet. If `overwrite` is false, the method will return
+`null` if the file already exists. Note that for all other problems,
+such as the filename extension being invalid or the path being
+unwritable, an `ArgumentException` is thrown.
+
+`public void SaveWorkbook();`
+
+Usually the `using` statment can be used to arrange that the
+spreadsheet is closed at the appropriate time. However, the top
+level workbook can be force-saved using this method. Note that
+the spreadsheet remains open, and the `XlDocument` accessible
+for further edits after a call to this method.
+
+`public XlSheet? AddSheet(string sheetName);`
+
+Add a new additional worksheet to the workbook in the spreadsheet
+file. Returns a reference to the new worksheet in the form of
+an `XlSheet` object if successful. The new sheet will have the
+name provided in the parameter to the method. Note that if a sheet
+with this name already exists, the method returns `null`. It does
+not return a reference to the pre-existing sheet.
+
+`public List<XlSheet> Sheets { get; }`
+
+This property gives access to all the worksheets in the document.
+Note that you should not create worksheets and add them to this
+list yourself. Use the `AddSheet` method to do this.
+
+`public XlRange? FindRange(string cellsRef);`
+
+In Excel, we can create cell range references such as:
+`Sheet 1!$A$3:$B$6` where `Sheet 1` is the name of a worksheet,
+and the remainder of the reference is describing the rectangle
+of cells from A3 to B6. As described below, an `XlRange` object
+contains a two dimensional list of the `XlCell` objects found
+in the named sheet when the cell range reference is passed to
+the `FindRange` method. Note that as this method is in the
+`XlDocument` class, the cell range reference must have the sheet
+name at the start.
+
+This function will return a `null` if the sheet name is missing
+from the cell reference, or if there is no sheet with the name
+provided.
+
+`public void Dispose();`
+
+As expected, this method flushes and closes the file, and releases
+managed and unmanaged resources associated with the `XlDocument`.
+
+## The `XlSheet` class
+
+For each worksheet in the workbook of a spreadsheet document, there
+will be a corresponding `XlSheet` object. A list of these is held
+in the `XlDocument` object's `Sheets` property. This class is the
+workhorse of the spreadhseet, as it gives acces to all the cells
+in the sheet and their values and types, as well as managing any
+charts or graphs created on the sheet.
+
+### Methods and properties
+
+`public string Name { get; set; }`
+
+The name of this sheet, as appears on the tab at the bottom of the
+sheet in Excel, and as used in the full cell range reference
+succeeded by an exclamation mark. Setting this property will throw
+an exception if the name is changed to something that is already
+the name of another worksheet in the workbook.
+
+`public XlCell FindCell(string cellRef);`
+
+Looks for a single cell in the current worksheet. The `stringRef`
+argument does not have the sheet name at the beginning, just the
+unadorned cell reference within the sheet, e.g. `A12`. This method
+will throw an exception if the cell reference is badly formed.
+
+```
+public XlCell SetCell(string cellName, string? value);
+public XlCell SetCell(string cellName, double value);
+```
+In the current sheet, set the value of the cell at cell reference
+`cellName` to the specified value. The type of the cell is also
+set. For example the string version above sets the cell type to
+general text, whereas the version taking a `double` argument sets
+the cell to have a number type.
+
+One important thing to note is that calling the string version of
+this method with a `null` string argument removes the cell from the
+sheet, i.e. sets it to have no value and no type. This can be used to
+clear a cell on the sheet.
+
+## The `XlCell` class
+
+This class encapsulates all the attributes and behaviours for a single
+cell on a worksheet. Instances of the `XlCell` class are looked up
+using the `XlSheet` object's `FindCell` method. If the cell is empty,
+that method still finds the cell, even though it contains no value.
+Similarly, values can be set into a cell from the parent sheet using
+its `SetCell` method as described previously.
+
+### Methods and properties
+
+`public string Column { get; }`
+
+For a cell whose fully qualified cell reference was `Sheet 1!$AA$23`
+this would give the value `AA` as a string object.
+
+`public uint Row { get; }`
+
+For the same cell reference above, this would yield the value 23. Note
+that row numbers start at 1 for the top row, not 0.
+
+`public int DataType { get; set; }`
+
+This should really be an enum, but for now it is set to one of a number
+of named integer constants from the following list:
+
+`XlCell.Empty, XlCell.String, XlCell.Number, XlCell.Date, XlCell.Boolean`
+
+It is important to set the data type before setting the `Value` property
+so that valid type conversion can be applied within the underlying
+OpenXml SDK. The `XlSheet` class's `SetCell` methods do this automatically.
+
+`public uint ColumnIndex { get; }` and `public uint RowIndex { get; }`
+
+These two properties convert the `Column` and `Row` values into zero-based
+integer values. Thus row 1 has row index of zero, and column `"ZZ"` has
+a column index of 701.
+
+`public string CellName { get; }`
+
+This property merely fuses the `Column` and `Row` properties to provide
+the local cell name for the cell.
+
+```
+public bool IsDouble { get; }
+public bool IsDecimal { get; }
+public bool IsDate { get; }
+```
+These boolean properties confirm the data type of the current cell, from the
+point of view of a variable into which you might assign its value.
+
+```
+public double AsDouble { get; }
+public decimal AsDecimal { get; }
+public DateTime AsDate { get; }
+```
+These properties give back the value of the cell in the nominated data type.
+If the cell cannot be converted to that type, or is empty, these will throw
+exceptions. Hence using the `IsXXX` properties first is advised. Note too
+that for strings held in the cell, the `Value` property can be used directly.
+
+```
+public void Set(double value);
+public void Set(decimal value);
+public void Set(DateTime value);
+public void Set(string? value);
+```
+These methods apply the appropriate type to the `DataType` property, then
+set the value of the cell to the argument.
+
+`public string? Value { get; set; }`
+
+If the cell contains a value, it is returned as a string representation,
+regardless of the data type the cell is specified to have. If the cell
+is empty, this will return a `null`. When setting the value using this
+property, it is important to set the `DataType` first, otherwise the value
+will be stored with a string type in the cell.
+
+Setting the value to null or the empty string clears the cell.
+
+## The `XlCellRef` class
+
+Really a helper class, this class encodes and decodes cell references and
+cell range references safely. It is used by other classes in this
+library, but is made available in case you wish to parse your own cell
+references.
+
+### Methods and properties
+
+`public XlCellRef(string cellRef);`
+
+The constructor for this class. Parses the cell reference and extracts
+its various fields, making them available through its other properties
+and methods. The cell reference argument can have the sheet name on the
+front or not.
+
+`public XlCellRef(XlSheet sheet, string cellRef);`
+
+If the cell reference does not have the sheet name at the front, the name
+is captured from the `sheet` argument instead. If both the `cellRef` and
+`sheet` arguments define a sheet the cell is on, the constructor looks to
+check they match. If not, an `ArgumentException` is thrown.
+
+`public string? SheetName { get; }`
+
+Yields the name of the worksheet this cell reference is pointing to. Will
+be set to `null` if the `XlCellRef` reference does not contain the sheet name 
+at its front.
+
+`public string Column { get; }`
+
+The column name for this cell, or the top left corner cell if the `XlCellRef`
+is referencing a range of cells.
+
+`public int Row { get; }`
+
+The one-based row number for the cell, or the top left corner cell if a range.
+
+`public string LastColumn { get; }`
+
+The column name for the cell at the bottom right corner of the cell range. If
+the cell reference is to a single cell, this will be the same as the
+`Column` property.
+
+`public int LastRow { get; }`
+
+The one-based row number of the bottom right corner cell of the cell range.
+If the cell reference was for a single cell, this will have the same value
+as the `Row` property.
+
+`public bool IsCell { get; }`
+
+True if the cell reference points to a single cell, even if it has been
+described using range syntax (e.g. `Sheet 2!$B$3:$B$3`).
+
+`public bool IsRowVector { get; }`
+
+True if all the cells in the range are in the same row. Also true therefore
+or a single cell.
+
+`public bool IsColumnVector { get; }`
+
+True if the cells in the range are in the same column. Also true for a
+single cell.
+
+```
+public static int Index(int row);
+public static int Index(string column);
+```
+These static helper functions take a one-based row number or a column
+identifier as a single letter or letter pair, and generate the corresponding
+zero-based index for the cell concerned.
+
+```
+public static int ToRowNumber(int rowIndex);
+public static string ToColName(int colIndex);
+```
+These static helper functions perform the reverse operations to the two
+`Index` methods, converting the row or column indices to either the one-based
+row number or the column names.
+
